@@ -40,19 +40,20 @@ Implements an R → AWK translation function.
   Converts R-style conditions into valid AWK commands.
 
 - **Key Features:**
-  - Replaces `and` with `&&`
-  - Converts single quotes to standard double quotes for AWK compatibility
-  - Translates `%in% c(...)` into multiple `||` conditions
-  - Maps column names to AWK field indices using a dictionary:
-    - carat → `$1`
-    - cut → `$2`
-    - color → `$3`
-    - price → `$7`
+* **Shallow Header Read:** The engine uses `readLines(path, n = 1)` to perform a high-speed "peek" at the file's first row. This allows it to map human-readable column names to AWK field indices ($1, $2, etc.) on the fly without loading the dataset into memory.
+* **Dataset-Agnostic Design:** By passing the `path` variable to the translator, the function can now process any CSV regardless of its schema or column count.
+* **Operator Normalization:** Automatically converts R-style logical operators (`and`/`or`) and quotes into AWK-compliant syntax (`&&`/`||` and `"`).
+* **Vector Expansion:** Translates R's `%in% c(...)` syntax into a series of logical `||` (OR) statements, enabling complex set-membership filtering directly in the shell.
+* **Regex Word Boundaries:** Uses `\\b` regex markers during substitution to ensure column names are matched exactly (e.g., preventing a column named `carat` from accidentally matching `carat_weight`).
 
-- **Execution:**  
-  Tests the following conditions:
-  - `price >= 1000`
-  - `carat <= 1 and color == 'E'`
-  - `cut %in% c('Premium', 'Ideal')`
+### Execution & Validation
 
-  Each condition is translated into an AWK command and executed using `fread()` to return the filtered dataset.
+The function `R_to_awk(path, r_query)` was validated using the following test cases on the `diamonds` dataset:
+
+| R Query | Translated AWK Logic |
+| :--- | :--- |
+| `price >= 1000` | `$7 >= 1000` |
+| `carat <= 1 and color == 'E'` | `$1 <= 1 && $3 == "E"` |
+| `cut %in% c('Premium', 'Ideal')` | `($2 == "Premium" \|\| $2 == "Ideal")` |
+
+Each translated command is executed via `data.table::fread(cmd = ...)` to confirm that the AWK-filtered results match the expected R-subsetted output.
